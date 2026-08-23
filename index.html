@@ -96,8 +96,8 @@
   <input id="phone" placeholder="例如：0912345678">
 
   <label>車牌</label>
-  <input id="plate" placeholder="例如：ABC-1234">
-
+  <input id="plate" placeholder="例如：ABC-1234" onblur="formatPlate()">
+  
   <label>車種</label>
   <input id="model" placeholder="例如：DRG 2.0">
   
@@ -184,6 +184,39 @@ async function submitForm() {
 }
 }
 
+  function formatPlate() {
+  const input = document.getElementById("plate");
+
+  let value = input.value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  if (!value) return;
+
+  let formatted = value;
+
+  // 3碼 + 4碼，例如 ABC1234 → ABC-1234
+  if (value.length === 7) {
+    formatted = value.slice(0, 3) + "-" + value.slice(3);
+  }
+
+  // 2碼 + 4碼，例如 AB1234 → AB-1234
+  else if (value.length === 6) {
+    formatted = value.slice(0, 2) + "-" + value.slice(2);
+  }
+
+  // 4碼 + 4碼，例如 ABCD1234 → ABCD-1234
+  else if (value.length === 8) {
+    formatted = value.slice(0, 4) + "-" + value.slice(4);
+  }
+
+  // 3碼 + 3碼，例如 ABC123 → ABC-123
+  else if (value.length === 6 && /^[A-Z]{3}\d{3}$/.test(value)) {
+    formatted = value.slice(0, 3) + "-" + value.slice(3);
+  }
+
+  input.value = formatted;
+}
 main();
 
 </script>
