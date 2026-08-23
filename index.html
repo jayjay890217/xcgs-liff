@@ -138,10 +138,29 @@ async function submitForm() {
     lineDisplayName: lineProfile.displayName
   };
 
-  console.log(data);
+ try {
+  const response = await fetch("你的N8N_TEST_WEBHOOK_URL", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    throw new Error("送出失敗");
+  }
 
   document.getElementById("status").innerText =
-    "測試成功，資料已準備完成。";
+    "✅ 會員資料綁定成功";
+
+} catch (error) {
+
+  console.error(error);
+
+  document.getElementById("status").innerText =
+    "❌ 綁定失敗，請稍後再試";
+}
 }
 
 main();
