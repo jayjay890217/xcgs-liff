@@ -187,21 +187,26 @@ if (result.status === "plate_not_found") {
     return;
   }
 
+  // 客戶按了確定
+  data.plateConfirmed = true;
+
+  // 第二次重新送給 n8n
+  const response2 = await fetch("你的PRODUCTION_WEBHOOK_URL", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response2.ok) {
+    throw new Error("第二次送出失敗");
+  }
+
   document.getElementById("status").innerText =
-    "車牌已確認，準備繼續新增流程。";
+    "✅ 資料確認完成";
 
   return;
-}
-
-document.getElementById("status").innerText =
-  "✅ 會員資料綁定成功";
-} catch (error) {
-
-  console.error(error);
-
-  document.getElementById("status").innerText =
-    "❌ 綁定失敗，請稍後再試";
-}
 }
 
   function formatPlate() {
