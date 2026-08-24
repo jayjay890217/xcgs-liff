@@ -365,21 +365,18 @@ async function submitForm() {
       "資料確認中...";
 
 
-    const response =
-      await fetch(
-        WEBHOOK_URL,
-        {
-          method: "POST",
+    console.log("準備送出的資料：", data);
+alert("準備送出到 n8n");
 
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
+const response = await fetch(WEBHOOK_URL, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(data)
+});
 
-          body:
-            JSON.stringify(data)
-        }
-      );
+alert("n8n 回應狀態：" + response.status);
 
 
     if (!response.ok) {
