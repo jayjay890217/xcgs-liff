@@ -5,9 +5,9 @@ let lineProfile = null;
 const WEBHOOK_URL =
   "https://jay890217.app.n8n.cloud/webhook/932e0d03-1b34-42fc-91e3-361579504380";
 
+// LINE LIFF 初始化
 async function main() {
   try {
-
     await liff.init({
       liffId: "2011218129-CeYpPJHj"
     });
@@ -31,11 +31,8 @@ async function main() {
 }
 
 
-// =============================
 // 車牌格式化
-// =============================
 function formatPlate() {
-
   const input = document.getElementById("plate");
 
   let value = input.value
@@ -67,9 +64,7 @@ function formatPlate() {
 }
 
 
-// =============================
-// 表單送出
-// =============================
+// 送出表單
 async function submitForm() {
 
   formatPlate();
@@ -91,198 +86,56 @@ async function submitForm() {
 
 
   if (!name || !phone || !plate) {
-
     alert("請填寫姓名、手機與車牌");
-
     return;
   }
-
 
   if (!lineProfile) {
-
     alert("LINE 尚未完成登入，請稍後再試");
-
     return;
   }
 
-
   const data = {
-
     name: name,
-
     phone: phone,
-
     plate: plate,
-
     model: model,
-
     relationship: relationship,
-
     lineUserId: lineProfile.userId,
-
     lineDisplayName: lineProfile.displayName
-
   };
-
 
   try {
 
     document.getElementById("status").innerText =
       "資料確認中...";
 
-
-    // =============================
-    // 第一次送出
-    // =============================
-
-    const response =
-      await fetch(WEBHOOK_URL, {
-
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json"
-        },
-
-        body: JSON.stringify(data)
-
-      });
-
+    const response = await fetch(WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
 
     if (!response.ok) {
-
       throw new Error(
-        "第一次送出失敗：" +
-        response.status
+        "送出失敗：" + response.status
       );
-
     }
-
-
-    const result =
-      await response.json();
-
-
-    console.log(
-      "第一次 n8n 回傳：",
-      result
-    );
-
-
-    // =============================
-    // n8n 說：車牌不存在
-    // =============================
-
-    if (
-      result.status ===
-      "plate_not_found"
-    ) {
-
-      const confirmed =
-        confirm(
-          "本店無此車號紀錄\n\n" +
-          "車牌：" +
-          result.plate +
-          "\n\n" +
-          "請確認是否輸入正確？"
-        );
-
-
-      // 使用者選取消
-      if (!confirmed) {
-
-        document
-          .getElementById("plate")
-          .focus();
-
-        document
-          .getElementById("status")
-          .innerText =
-          "請重新確認車牌後再送出。";
-
-        return;
-
-      }
-
-
-      // =============================
-      // 使用者按「確定」
-      // =============================
-
-      data.plateConfirmed = true;
-
-
-      console.log(
-        "第二次送出資料：",
-        data
-      );
-
-
-      document.getElementById("status").innerText =
-        "車牌已確認，正在建立資料...";
-
-
-      // =============================
-      // 第二次送出
-      // =============================
-
-      const response2 =
-        await fetch(WEBHOOK_URL, {
-
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-
-          body:
-            JSON.stringify(data)
-
-        });
-
-
-      if (!response2.ok) {
-
-        throw new Error(
-          "第二次送出失敗：" +
-          response2.status
-        );
-
-      }
-
-
-      document.getElementById("status").innerText =
-        "✅ 資料確認完成";
-
-      return;
-
-    }
-
-
-    // =============================
-    // 原本就有車牌
-    // =============================
 
     document.getElementById("status").innerText =
-      "✅ 會員資料綁定成功";
-
+      "✅ 資料已送出";
 
   } catch (error) {
 
     console.error(error);
 
     document.getElementById("status").innerText =
-      "❌ 綁定失敗：" +
-      error.message;
-
+      "❌ 送出失敗：" + error.message;
   }
-
 }
 
-
-// 啟動 LIFF
 main();
 
 </script>
-</html>
