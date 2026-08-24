@@ -172,9 +172,29 @@ async function submitForm() {
     throw new Error("送出失敗");
   }
 
-  document.getElementById("status").innerText =
-    "✅ 會員資料綁定成功";
+  const result = await response.json();
 
+if (result.status === "plate_not_found") {
+
+  const confirmed = confirm(
+    `本店無此車號紀錄\n\n車牌：${result.plate}\n\n請確認是否輸入正確？`
+  );
+
+  if (!confirmed) {
+    document.getElementById("plate").focus();
+    document.getElementById("status").innerText =
+      "請重新確認車牌後再送出。";
+    return;
+  }
+
+  document.getElementById("status").innerText =
+    "車牌已確認，準備繼續新增流程。";
+
+  return;
+}
+
+document.getElementById("status").innerText =
+  "✅ 會員資料綁定成功";
 } catch (error) {
 
   console.error(error);
