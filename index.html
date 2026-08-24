@@ -160,7 +160,7 @@ async function submitForm() {
 };
 
  try {
-  const response = await fetch("https://jay890217.app.n8n.cloud/webhook-test/932e0d03-1b34-42fc-91e3-361579504380", {
+  const response = await fetch("https://jay890217.app.n8n.cloud/webhook/932e0d03-1b34-42fc-91e3-361579504380", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -191,7 +191,7 @@ if (result.status === "plate_not_found") {
   data.plateConfirmed = true;
 
   // 第二次重新送給 n8n
-  const response2 = await fetch("你的PRODUCTION_WEBHOOK_URL", {
+  const response2 = await fetch("https://jay890217.app.n8n.cloud/webhook/932e0d03-1b34-42fc-91e3-361579504380", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
