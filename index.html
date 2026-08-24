@@ -1,17 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>XCGS 會員綁定</title>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 
   <style>
     body {
-      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      font-family: Arial, sans-serif;
       background: #111;
       color: #fff;
       margin: 0;
@@ -20,17 +18,15 @@
 
     .box {
       max-width: 520px;
-      margin: 30px auto;
+      margin: auto;
       background: #1d1d1d;
       padding: 24px;
       border-radius: 16px;
       border-top: 5px solid #ff6a00;
-      box-sizing: border-box;
     }
 
     h1 {
-      margin: 0 0 5px 0;
-      font-size: 28px;
+      margin-bottom: 5px;
     }
 
     .sub {
@@ -42,25 +38,17 @@
       display: block;
       margin-top: 16px;
       margin-bottom: 6px;
-      font-weight: bold;
     }
 
-    input,
-    select {
+    input {
       width: 100%;
       box-sizing: border-box;
       padding: 13px;
       border-radius: 8px;
       border: 1px solid #555;
       background: #2b2b2b;
-      color: #fff;
+      color: white;
       font-size: 16px;
-    }
-
-    input:focus,
-    select:focus {
-      outline: none;
-      border-color: #ff6a00;
     }
 
     button {
@@ -70,32 +58,29 @@
       border: none;
       border-radius: 8px;
       background: #ff6a00;
-      color: #fff;
+      color: white;
       font-size: 17px;
       font-weight: bold;
       cursor: pointer;
     }
 
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
     #status {
       margin-top: 16px;
       color: #ffb066;
-      line-height: 1.5;
     }
 
-    .note {
-      margin-top: 20px;
-      font-size: 13px;
-      color: #888;
-      line-height: 1.6;
-    }
+    select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1px solid #555;
+  background: #2b2b2b;
+  color: white;
+  font-size: 16px;
+}
   </style>
 </head>
-
 
 <body>
 
@@ -104,325 +89,147 @@
   <h1>旭馳車業｜XCGS</h1>
   <div class="sub">會員資料綁定</div>
 
-  <label for="name">姓名</label>
-  <input
-    id="name"
-    type="text"
-    placeholder="請輸入姓名"
-  >
+  <label>姓名</label>
+  <input id="name" placeholder="請輸入姓名">
 
-  <label for="phone">手機號碼</label>
-  <input
-    id="phone"
-    type="tel"
-    inputmode="numeric"
-    maxlength="10"
-    placeholder="例如：0912345678"
-  >
+  <label>手機號碼</label>
+  <input id="phone" placeholder="例如：0912345678">
 
-  <label for="plate">車牌</label>
-  <input
-    id="plate"
-    type="text"
-    placeholder="例如：ABC-1234"
-    onblur="formatPlate()"
-  >
+  <label>車牌</label>
+  <input id="plate" placeholder="例如：ABC-1234" onblur="formatPlate()">
+  
+  <label>車種</label>
+  <input id="model" placeholder="例如：DRG 2.0">
+  
+  <label>您是這台車的？</label>
+<select id="relationship">
+  <option value="車主本人">車主本人</option>
+  <option value="家人">家人</option>
+  <option value="朋友">朋友</option>
+  <option value="其他">其他</option>
+</select>
 
-  <label for="model">車種</label>
-  <input
-    id="model"
-    type="text"
-    placeholder="例如：DRG 2.0"
-  >
+  <button onclick="submitForm()">確認綁定</button>
 
-  <label for="relationship">您是這台車的？</label>
-  <select id="relationship">
-    <option value="車主本人">車主本人</option>
-    <option value="家人">家人</option>
-    <option value="朋友">朋友</option>
-    <option value="其他">其他</option>
-  </select>
-
-  <button id="submitButton" onclick="submitForm()">
-    確認綁定
-  </button>
-
-  <div id="status">正在確認 LINE 登入狀態...</div>
-
-  <div class="note">
-    您提供的資料將用於會員辨識、車輛服務與 LINE 通知。
-  </div>
+  <div id="status"></div>
 
 </div>
-
 
 <script>
 
 let lineProfile = null;
 
-const WEBHOOK_URL =
-  "https://jay890217.app.n8n.cloud/webhook/932e0d03-1b34-42fc-91e3-361579504380";
-
-
-// ==============================
-// LINE LIFF 初始化
-// ==============================
-
 async function main() {
 
-  try {
+  await liff.init({
+    liffId: "2011218129-CeYpPJHj"
+  });
 
-    await liff.init({
-      liffId: "2011218129-CeYpPJHj"
-    });
-
-    if (!liff.isLoggedIn()) {
-      liff.login();
-      return;
-    }
-
-    lineProfile = await liff.getProfile();
-
-    document.getElementById("status").innerText =
-      "LINE 已登入：" + lineProfile.displayName;
-
-  }
-  catch (error) {
-
-    console.error("LIFF 初始化失敗：", error);
-
-    document.getElementById("status").innerText =
-      "❌ LINE 初始化失敗，請重新開啟頁面";
-
-  }
-
-}
-
-
-// ==============================
-// 車牌格式化
-//
-// 4碼 → XX-XX
-// 6碼 → XXX-XXX
-// 7碼 → XXX-XXXX
-// ==============================
-
-function formatPlate() {
-
-  const input =
-    document.getElementById("plate");
-
-  let value =
-    input.value
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, "");
-
-  if (!value) {
+  if (!liff.isLoggedIn()) {
+    liff.login();
     return;
   }
 
-  if (value.length === 4) {
+  lineProfile = await liff.getProfile();
 
-    value =
-      value.slice(0, 2)
-      + "-"
-      + value.slice(2);
-
-  }
-
-  else if (
-    value.length === 6 ||
-    value.length === 7
-  ) {
-
-    value =
-      value.slice(0, 3)
-      + "-"
-      + value.slice(3);
-
-  }
-
-  input.value = value;
-
+  document.getElementById("status").innerText =
+    "LINE 已登入：" + lineProfile.displayName;
 }
-
-
-// ==============================
-// 手機格式整理
-// ==============================
-
-function formatPhone(phone) {
-
-  return phone
-    .replace(/\D/g, "")
-    .slice(0, 10);
-
-}
-
-
-// ==============================
-// 表單送出
-// ==============================
 
 async function submitForm() {
 
-  formatPlate();
+  const name = document.getElementById("name").value;
+  const phone = document.getElementById("phone").value;
+  const plate = document.getElementById("plate").value;
+  const model = document.getElementById("model").value;
+  const relationship = document.getElementById("relationship").value;
 
-  const button =
-    document.getElementById("submitButton");
-
-  const name =
-    document
-      .getElementById("name")
-      .value
-      .trim();
-
-  const phone =
-    formatPhone(
-      document
-        .getElementById("phone")
-        .value
-        .trim()
-    );
-
-  const plate =
-    document
-      .getElementById("plate")
-      .value
-      .trim();
-
-  const model =
-    document
-      .getElementById("model")
-      .value
-      .trim();
-
-  const relationship =
-    document
-      .getElementById("relationship")
-      .value;
-
-
-  // 必填檢查
   if (!name || !phone || !plate) {
-
     alert("請填寫姓名、手機與車牌");
-
     return;
-
   }
-
-
-  // 台灣手機基本檢查
-  if (
-    phone.length !== 10 ||
-    !phone.startsWith("09")
-  ) {
-
-    alert("手機號碼請輸入完整 10 碼，例如 0912345678");
-
-    return;
-
-  }
-
-
-  // LINE Profile 尚未完成
-  if (!lineProfile) {
-
-    alert("LINE 尚未完成登入，請稍後再試");
-
-    return;
-
-  }
-
 
   const data = {
+  name: name,
+  phone: phone,
+  plate: plate,
+  model: model,
+  relationship: relationship,
+  lineUserId: lineProfile.userId,
+  lineDisplayName: lineProfile.displayName
+};
 
-    name: name,
+ try {
+  const response = await fetch("https://jay890217.app.n8n.cloud/webhook/932e0d03-1b34-42fc-91e3-361579504380", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(data)
+  });
 
-    phone: phone,
-
-    plate: plate,
-
-    model: model,
-
-    relationship: relationship,
-
-    lineUserId:
-      lineProfile.userId,
-
-    lineDisplayName:
-      lineProfile.displayName
-
-  };
-
-
-  try {
-
-    button.disabled = true;
-
-    document.getElementById("status").innerText =
-      "資料確認中...";
-
-
-    console.log("準備送出的資料：", data);
-alert("準備送出到 n8n");
-
-const response = await fetch(WEBHOOK_URL, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify(data)
-});
-
-alert("n8n 回應狀態：" + response.status);
-
-
-    if (!response.ok) {
-
-      throw new Error(
-        "伺服器回應：" +
-        response.status
-      );
-
-    }
-
-
-    document.getElementById("status").innerText =
-      "✅ 資料已送出，會員資料處理完成";
-
+  if (!response.ok) {
+    throw new Error("送出失敗");
   }
 
-  catch (error) {
+  const result = await response.json();
 
-    console.error(
-      "送出失敗：",
-      error
-    );
+if (result.status === "plate_not_found") {
 
+  const confirmed = confirm(
+    `本店無此車號紀錄\n\n車牌：${result.plate}\n\n請確認是否輸入正確？`
+  );
+
+  if (!confirmed) {
+    document.getElementById("plate").focus();
     document.getElementById("status").innerText =
-      "❌ 送出失敗，請稍後重新嘗試";
-
+      "請重新確認車牌後再送出。";
+    return;
   }
 
-  finally {
+  // 客戶按了確定
+  data.plateConfirmed = true;
 
-    button.disabled = false;
+  // 第二次重新送給 n8n
+  const response2 = await fetch("https://jay890217.app.n8n.cloud/webhook/932e0d03-1b34-42fc-91e3-361579504380", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(data)
+  });
 
+  if (!response2.ok) {
+    throw new Error("第二次送出失敗");
   }
 
+  document.getElementById("status").innerText =
+    "✅ 資料確認完成";
+
+  return;
 }
 
+  function formatPlate() {
+  const input = document.getElementById("plate");
 
-// ==============================
-// 啟動
-// ==============================
+  let value = input.value
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
 
+  if (!value) return;
+
+  if (value.length === 4) {
+    value = value.slice(0, 2) + "-" + value.slice(2);
+  }
+  else if (value.length === 6 || value.length === 7) {
+    value = value.slice(0, 3) + "-" + value.slice(3);
+  }
+
+  input.value = value;
+}
 main();
 
 </script>
-
 
 </body>
 </html>
