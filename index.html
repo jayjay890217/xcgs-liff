@@ -225,6 +225,7 @@
 
       <button type="submit" id="submit">確認綁定</button>
       <div id="status"></div>
+      <div id="debug" style="margin-top:6px;font-size:11px;color:#777;word-break:break-all;"></div>
     </form>
   </section>
 
@@ -276,13 +277,27 @@ function setStatus(msg, isErr) {
 
 // 呼叫 Apps Script。用 text/plain 避免 CORS 預檢（Apps Script 不支援 OPTIONS）
 async function api(action, payload) {
-  const res = await fetch(CONFIG.API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(Object.assign({ action, idToken }, payload || {}))
-  });
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const data = await res.json();
+  let res, text;
+  try {
+    res = await fetch(CONFIG.API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(Object.assign({ action, idToken }, payload || {}))
+    });
+    text = await res.text();
+  } catch (e) {
+    const err = new Error("連線失敗");
+    err.detail = action + " / " + (e && e.name) + ": " + (e && e.message);
+    throw err;
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    const err = new Error("伺服器回應異常");
+    err.detail = action + " / HTTP " + res.status + " " + (res.url || "").slice(0, 60) + " / " + String(text).slice(0, 80);
+    throw err;
+  }
   if (!data.ok) {
     const err = new Error(data.error || "伺服器錯誤");
     err.code = data.code;
@@ -443,7 +458,8 @@ async function main() {
       liff.login({ redirectUri: location.href });
       return;
     }
-    // 查詢失敗不擋填寫
+    // 查詢失敗不擋填寫，但把原因記下來方便除錯
+    $("debug").textContent = "載入：" + (e.detail || e.message);
   }
 
   show("form");
@@ -488,7 +504,8 @@ $("form").addEventListener("submit", async (ev) => {
       liff.login({ redirectUri: location.href });
       return;
     }
-    setStatus("❌ " + (e.message && !/fetch|HTTP/i.test(e.message) ? e.message : "綁定失敗，請稍後再試"), true);
+    setStatus("❌ " + (e.detail ? "綁定失敗，請稍後再試" : (e.message || "綁定失敗，請稍後再試")), true);
+    if (e.detail) $("debug").textContent = "錯誤：" + e.detail;
   } finally {
     submitting = false;
     $("submit").disabled = false;
