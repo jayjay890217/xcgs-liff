@@ -14,9 +14,13 @@ const SHEET_NAME = '會員綁定';
 
 const HEADERS = [
   'LINE UserID', 'LINE 名稱', '姓名', '手機', '車牌', '車種', '關係',
-  '首次綁定時間', '最後更新時間'
+  '首次綁定時間', '最後更新時間', '客戶ID', '比對結果'
 ];
-const COL = { userId: 1, displayName: 2, name: 3, phone: 4, plate: 5, model: 6, relationship: 7, createdAt: 8, updatedAt: 9 };
+const COL = { userId: 1, displayName: 2, name: 3, phone: 4, plate: 5, model: 6, relationship: 7, createdAt: 8, updatedAt: 9, customerId: 10, match: 11 };
+
+// 旭馳APP資料庫（AppSheet 旭馳雲端系統）的「客戶」分頁：一列＝一台車
+const APP_DB_ID = '1zjWNnVYUlILxes3Gn-PTRJpO1kgOmjeogGX9hK-4UEM';
+const APP_SHEET = '客戶';
 const RELATIONSHIPS = ['車主本人', '家人', '朋友', '其他'];
 
 // ============================================================
@@ -92,10 +96,14 @@ function bind_(user, body) {
     const row = findRow_(sheet, user.userId);
     const now = new Date();
 
+    // 對應旭馳雲端車輛（失敗不影響綁定本身）
+    let link = { customerId: '', match: '' };
+    try { link = linkToApp_(user.userId, m); } catch (err) { console.error(err); link.match = '比對失敗：' + err.message; }
+
     const values = [
       user.userId, user.displayName, m.name, m.phone, m.plate, m.model, m.relationship,
       row ? sheet.getRange(row, COL.createdAt).getValue() : now,
-      now
+      now, link.customerId, link.match
     ];
 
     const target = row || sheet.getLastRow() + 1;
@@ -105,6 +113,58 @@ function bind_(user, body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ============================================================
+// 對應旭馳雲端：用車牌找車，車主本人且手機相符才寫入 LINE_User_ID
+// ============================================================
+function normPlate_(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function normPhone_(s) { return String(s || '').replace(/\D/g, ''); }
+
+function linkToApp_(userId, m) {
+  const sh = SpreadsheetApp.openById(APP_DB_ID).getSheetByName(APP_SHEET);
+  const v = sh.getDataRange().getDisplayValues();
+  const h = v[0];
+  const c = { id: h.indexOf('客戶ID'), phone: h.indexOf('手機'), plate: h.indexOf('車牌'), line: h.indexOf('LINE_User_ID') };
+  if (c.id < 0 || c.plate < 0 || c.line < 0) throw new Error('旭馳雲端「客戶」分頁欄位名稱不符');
+
+  const want = normPlate_(m.plate);
+  let hit = -1;
+  for (let i = 1; i < v.length; i++) if (normPlate_(v[i][c.plate]) === want) { hit = i; break; }
+
+  // 這個 LINE 帳號之前若綁在別台車（改綁），先把舊的 LINE_User_ID 清掉
+  for (let i = 1; i < v.length; i++) {
+    if (i !== hit && v[i][c.line] === userId) sh.getRange(i + 1, c.line + 1).setValue('');
+  }
+
+  if (hit < 0) return { customerId: '', match: '找不到車牌（新車待建檔）' };
+
+  const r = v[hit], customerId = r[c.id];
+  if (m.relationship !== '車主本人') return { customerId: customerId, match: '已對應車輛（' + m.relationship + '，未寫入車主資料）' };
+
+  const appPhone = normPhone_(r[c.phone]);
+  if (appPhone && appPhone !== m.phone) return { customerId: customerId, match: '待確認：手機與旭馳雲端不同' };
+  if (r[c.line] && r[c.line] !== userId) return { customerId: customerId, match: '待確認：這台車已綁定其他 LINE 帳號' };
+
+  sh.getRange(hit + 1, c.line + 1).setValue(userId);
+  if (!appPhone && c.phone >= 0) sh.getRange(hit + 1, c.phone + 1).setNumberFormat('@').setValue(m.phone);
+  return { customerId: customerId, match: appPhone ? '已對應並寫入 LINE' : '已對應並寫入 LINE（補上手機）' };
+}
+
+// 已經綁定過的會員補跑一次比對（在編輯器手動執行）
+function relinkAll() {
+  const sheet = getSheet_();
+  const last = sheet.getLastRow();
+  if (last < 2) return 0;
+  const rows = sheet.getRange(2, 1, last - 1, HEADERS.length).getDisplayValues();
+  rows.forEach(function (v, i) {
+    const m = { phone: v[COL.phone - 1], plate: v[COL.plate - 1], relationship: v[COL.relationship - 1] };
+    let link;
+    try { link = linkToApp_(v[COL.userId - 1], m); } catch (err) { link = { customerId: '', match: '比對失敗：' + err.message }; }
+    sheet.getRange(i + 2, COL.customerId, 1, 2).setValues([[link.customerId, link.match]]);
+  });
+  Logger.log('完成 ' + rows.length + ' 筆');
+  return rows.length;
 }
 
 function findMember_(userId) {
@@ -134,6 +194,11 @@ function getSheet_() {
     // 手機、車牌設成純文字，避免 09 開頭的 0 被吃掉
     sheet.getRange('A:G').setNumberFormat('@');
     sheet.getRange('H:I').setNumberFormat('yyyy/mm/dd hh:mm');
+  }
+  // 舊分頁補上新增的欄位（客戶ID、比對結果）
+  const head = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (head.length < HEADERS.length || head[COL.customerId - 1] !== HEADERS[COL.customerId - 1]) {
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
   }
   return sheet;
 }
