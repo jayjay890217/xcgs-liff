@@ -23,6 +23,10 @@ const APP_DB_ID = '1zjWNnVYUlILxes3Gn-PTRJpO1kgOmjeogGX9hK-4UEM';
 const APP_SHEET = '客戶';
 const RELATIONSHIPS = ['車主本人', '家人', '朋友', '其他'];
 
+// 綁定成功後換成「已登入」圖文選單
+// Messaging API 的 Channel access token 放在「專案設定 → 指令碼屬性」，名稱 LINE_CHANNEL_ACCESS_TOKEN（不要寫在程式碼裡）
+const MEMBER_MENU_ALIAS = 'xuchi-member';
+
 // ============================================================
 // 入口
 // ============================================================
@@ -109,7 +113,11 @@ function bind_(user, body) {
     const target = row || sheet.getLastRow() + 1;
     sheet.getRange(target, 1, 1, HEADERS.length).setValues([values]);
 
-    return { ok: true, updated: !!row, member: m };
+    // 換成會員選單（失敗不影響綁定本身）
+    let menu = false;
+    try { menu = linkMemberMenu_(user.userId); } catch (err) { console.error(err); }
+
+    return { ok: true, updated: !!row, member: m, menu: menu };
   } finally {
     lock.releaseLock();
   }
@@ -165,6 +173,59 @@ function relinkAll() {
   });
   Logger.log('完成 ' + rows.length + ' 筆');
   return rows.length;
+}
+
+// ============================================================
+// 圖文選單：把「已登入」選單套用到這位顧客
+// ============================================================
+function lineToken_() {
+  return PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN') || '';
+}
+
+// 用別名找出目前的會員選單 ID（選單重建時 member_menu.py 會更新別名，這裡不用改）
+function memberMenuId_(token) {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('memberMenuId');
+  if (hit) return hit;
+  const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/alias/' + MEMBER_MENU_ALIAS, {
+    headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) throw new Error('找不到會員選單別名 ' + MEMBER_MENU_ALIAS + '（HTTP ' + res.getResponseCode() + '）');
+  const id = JSON.parse(res.getContentText()).richMenuId;
+  cache.put('memberMenuId', id, 3600);
+  return id;
+}
+
+function linkMemberMenu_(userId) {
+  const token = lineToken_();
+  if (!token) { console.warn('未設定 LINE_CHANNEL_ACCESS_TOKEN，略過換選單'); return false; }
+  const menuId = memberMenuId_(token);
+  const res = UrlFetchApp.fetch(
+    'https://api.line.me/v2/bot/user/' + encodeURIComponent(userId) + '/richmenu/' + menuId,
+    { method: 'post', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }
+  );
+  if (res.getResponseCode() !== 200) {
+    CacheService.getScriptCache().remove('memberMenuId');  // 下次重新查別名
+    console.error('換選單失敗 ' + res.getResponseCode() + ' ' + res.getContentText());
+    return false;
+  }
+  return true;
+}
+
+// 已經綁定過的會員，一次全部換成會員選單（在編輯器手動執行一次）
+function linkAllMembers() {
+  const sheet = getSheet_();
+  const last = sheet.getLastRow();
+  if (last < 2) return 0;
+  const ids = sheet.getRange(2, COL.userId, last - 1, 1).getDisplayValues().map(function (r) { return r[0]; });
+  let ok = 0, bad = 0;
+  ids.forEach(function (id) {
+    if (!id) return;
+    if (linkMemberMenu_(id)) ok++; else bad++;
+    Utilities.sleep(50);
+  });
+  Logger.log('會員選單：成功 ' + ok + '，失敗 ' + bad);
+  return ok;
 }
 
 function findMember_(userId) {

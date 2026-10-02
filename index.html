@@ -234,6 +234,9 @@
     <div class="big-icon">✅</div>
     <div id="done-title" style="font-size:18px;font-weight:bold;">綁定成功</div>
     <div class="summary" id="done-summary"></div>
+    <div id="menu-unlocked" hidden style="margin:12px 0;padding:10px 12px;border-radius:10px;background:#fff6cf;border:2px solid #f6c531;font-weight:bold;">
+      🔓 會員選單已解鎖！關閉後回到聊天室，就能看到新選單。
+    </div>
     <button id="close-btn">關閉</button>
     <button class="secondary" id="edit-btn">修改資料</button>
   </section>
@@ -377,7 +380,7 @@ function fillForm(m) {
   if (m.relationship) $("relationship").value = m.relationship;
 }
 
-function showDone(m, isUpdate) {
+function showDone(m, isUpdate, menuUnlocked) {
   $("done-title").textContent = isUpdate ? "資料已更新" : "綁定成功";
   const rows = [
     ["姓名", m.name], ["手機", m.phone], ["車牌", m.plate],
@@ -390,6 +393,7 @@ function showDone(m, isUpdate) {
     line.textContent = k + "：" + v;
     box.appendChild(line);
   });
+  $("menu-unlocked").hidden = !menuUnlocked;
   $("close-btn").hidden = !liff.isInClient();
   show("done");
 }
@@ -495,7 +499,7 @@ $("form").addEventListener("submit", async (ev) => {
   try {
     const r = await api("bind", data);
     setStatus("");
-    showDone(r.member || data, r.updated);
+    showDone(r.member || data, r.updated, r.menu === true);
   } catch (e) {
     console.error(e);
     if (e.code === "TOKEN_EXPIRED") {
