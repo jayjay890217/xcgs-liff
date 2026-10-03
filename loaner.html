@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>旭馳代步車合約</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0d0d0d; --panel:#171717; --line:#2b2b2b; --org:#ff8a00; --org2:#ffb35c;
+  --txt:#f3eee6; --dim:#9d968b; --bad:#ff6b5b; --ok:#5fd38a; --paper:#fbf7ef; --ink:#1a1712;
+  --f-disp:"Bebas Neue","Impact","Arial Narrow",sans-serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  background-image:repeating-linear-gradient(-45deg,rgba(255,138,0,.035) 0 14px,transparent 14px 28px)}
+.wrap{max-width:520px;margin:0 auto;padding-inline:16px;padding-block:18px 48px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:3px solid var(--org);padding-bottom:8px}
+.brand{line-height:1}
+.brand .en{display:block;font-family:var(--f-disp);font-size:42px;letter-spacing:.06em;color:var(--org)}
+.brand .zh{display:block;font-weight:900;font-size:15px;letter-spacing:.3em;margin-top:2px}
+.steps{display:flex;gap:6px;font-size:12px;font-weight:700;color:var(--dim)}
+.steps span{padding:2px 8px;border-radius:20px;border:1px solid var(--line)}
+.steps span.on{background:var(--org);color:#111;border-color:var(--org)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-size:18px;color:var(--org2)}
+label.f{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:14px}
+input[type=text],input[type=tel],textarea{width:100%;background:#0f0f0f;color:var(--txt);border:2px solid var(--line);border-radius:10px;padding:11px 12px;font:inherit;font-size:17px}
+input:focus,textarea:focus{outline:none;border-color:var(--org)}
+input.bad{border-color:var(--bad)}
+.hint{font-size:12px;color:var(--bad);min-height:1em;font-weight:500}
+.lic{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.lic label{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;aspect-ratio:1.58;border:2px dashed var(--line);border-radius:12px;
+  cursor:pointer;color:var(--dim);font-weight:700;font-size:14px;overflow:hidden;position:relative;max-width:100%}
+.lic label img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.lic label.has{border-style:solid;border-color:var(--org)}
+.btn{border:0;border-radius:12px;background:var(--org);color:#111;font:inherit;font-weight:900;font-size:18px;letter-spacing:.06em;padding:14px;cursor:pointer;box-shadow:0 4px 0 #9b5200;width:100%}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #9b5200}
+.btn:disabled{opacity:.55;cursor:wait}
+.btn.ghost{background:transparent;color:var(--org);border:2px solid var(--org);box-shadow:none;font-size:16px;padding:10px}
+.err{color:var(--bad);font-weight:700;margin:0;min-height:1.4em}
+:focus-visible{outline:3px solid var(--org2);outline-offset:3px}
+
+/* contract paper */
+.paper{background:var(--paper);color:var(--ink);border-radius:6px;padding:20px 18px;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:14px;line-height:1.7}
+.paper h3{margin:0 0 4px;text-align:center;font-size:19px;letter-spacing:.1em}
+.paper .no{text-align:center;font-size:12px;color:#6d6658;margin-bottom:12px}
+.paper table{width:100%;border-collapse:collapse;margin-bottom:12px}
+.paper td{border:1px solid #cfc6b4;padding:6px 8px}
+.paper td:first-child{width:38%;background:#f1eadb;font-weight:700}
+.paper ol{margin:0 0 12px;padding-left:20px}
+.paper ol li{margin-bottom:4px}
+.paper .pics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.paper .pics img{width:100%;border:1px solid #cfc6b4;border-radius:4px}
+.sigbox{position:relative;background:#fff;border:2px dashed #b9ad95;border-radius:8px;height:170px;touch-action:none}
+.sigbox canvas{width:100%;height:100%;display:block;border-radius:8px}
+.sigbox .ph{position:absolute;inset:0;display:grid;place-items:center;color:#b9ad95;font-weight:700;pointer-events:none}
+.sigrow{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px;color:#6d6658}
+.sigrow button{background:none;border:0;color:#b45f00;font:inherit;font-weight:700;cursor:pointer}
+.agree{display:flex;gap:10px;align-items:flex-start;font-weight:700}
+.agree input{width:22px;height:22px;accent-color:var(--org);flex:0 0 auto;margin-top:2px}
+
+/* status */
+.status{border-radius:16px;padding:18px 16px;display:flex;flex-direction:column;gap:6px}
+.status.wait{background:#24190b;border:2px solid var(--org)}
+.status.ok{background:var(--org);color:#111}
+.status .big{font-size:22px;font-weight:900}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:15px}
+.kv dt{color:var(--dim)}
+.kv dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+.status.ok .kv dt{color:#4a2c00}
+.loaner{font-family:var(--f-disp);font-size:46px;letter-spacing:.06em;line-height:1;background:#111;color:var(--org);border-radius:10px;padding:6px 14px;align-self:flex-start}
+.center{text-align:center;color:var(--dim);padding:40px 0}
+footer{text-align:center;font-size:12px;color:var(--dim)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="en">LOANER</span><span class="zh">代步車合約</span></div>
+    <div class="steps" id="steps"><span data-s="1">填資料</span><span data-s="2">簽合約</span><span data-s="3">完成</span></div>
+  </header>
+
+  <div id="v-loading" class="center">讀取中…</div>
+  <div id="v-error" class="card" hidden><h2>無法開啟</h2><p id="e-text" style="margin:0"></p></div>
+
+  <!-- 1. 填資料 -->
+  <form id="v-form" class="card" hidden novalidate>
+    <h2>填寫借用人資料</h2>
+    <label class="f">維修車輛車牌<input type="text" id="repairPlate" placeholder="ABC-1234" autocapitalize="characters" maxlength="10"><span class="hint" id="h-repairPlate"></span></label>
+    <label class="f">姓名<input type="text" id="name" maxlength="20" autocomplete="name"><span class="hint" id="h-name"></span></label>
+    <label class="f">身分證字號<input type="text" id="idNo" maxlength="10" autocapitalize="characters" placeholder="A123456789"><span class="hint" id="h-idNo"></span></label>
+    <label class="f">手機<input type="tel" id="phone" maxlength="12" inputmode="numeric" placeholder="0912345678" autocomplete="tel"><span class="hint" id="h-phone"></span></label>
+    <div class="f" style="font-weight:700;font-size:14px">駕照（正面、反面）</div>
+    <div class="lic">
+      <label id="lb-front" for="f-front">＋ 駕照正面</label>
+      <label id="lb-back" for="f-back">＋ 駕照反面</label>
+    </div>
+    <input type="file" id="f-front" accept="image/*" hidden>
+    <input type="file" id="f-back" accept="image/*" hidden>
+    <span class="hint" id="h-lic"></span>
+    <button class="btn" type="submit">下一步：檢視合約</button>
+  </form>
+
+  <!-- 2. 合約與簽名 -->
+  <section id="v-review" hidden style="display:flex;flex-direction:column;gap:14px">
+    <div class="paper" id="paper"></div>
+    <div class="paper">
+      <strong>承租人簽名</strong>
+      <div class="sigbox" id="sigbox"><canvas id="sig"></canvas><div class="ph" id="sigph">請在這裡簽名</div></div>
+      <div class="sigrow"><span>用手指簽名</span><button type="button" id="sigclear">清除重簽</button></div>
+    </div>
+    <label class="agree"><input type="checkbox" id="agree"><span>我已閱讀並同意以上合約條款，資料皆正確無誤</span></label>
+    <p class="err" id="r-err" role="alert"></p>
+    <button class="btn" id="submit">確認無誤提出申請</button>
+    <button class="btn ghost" id="back" type="button">返回修改資料</button>
+  </section>
+
+  <!-- 3. 狀態 -->
+  <section id="v-status" hidden style="display:flex;flex-direction:column;gap:14px"></section>
+
+  <footer>旭馳車業｜02-2204-8272</footer>
+</div>
+
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+const CONFIG = {
+  LIFF_ID: "2011218129-CeYpPJHj",
+  API_URL: "https://script.google.com/macros/s/AKfycbwFnh-qXUYky1Ltj6gFHNlSeWi3Hfc3-Rg3rgL08-8kbIooHWIXBCEQATrKVNDOnz6xpA/exec"
+};
+
+const $ = id => document.getElementById(id);
+let idToken = null, terms = [], record = null;
+const imgs = { front: null, back: null };
+
+function view(v) {
+  ["loading", "error", "form", "review", "status"].forEach(x => $("v-" + x).hidden = x !== v);
+  const step = v === "form" ? 1 : v === "review" ? 2 : v === "status" ? 3 : 0;
+  document.querySelectorAll("#steps span").forEach(s => s.classList.toggle("on", Number(s.dataset.s) === step));
+  window.scrollTo({ top: 0 });
+}
+function fail(msg) { $("e-text").textContent = msg; view("error"); }
+
+async function api(action, payload) {
+  const res = await fetch(CONFIG.API_URL, {
+    method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ action, idToken }, payload || {}))
+  });
+  const d = await res.json();
+  if (!d.ok) { const e = new Error(d.error || "伺服器錯誤"); e.code = d.code; throw e; }
+  return d;
+}
+
+/* ---------- 正規化 ---------- */
+function normPlate(v) {
+  const c = String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const g = c.match(/[A-Z]+|[0-9]+/g) || [];
+  return g.length === 2 ? g[0] + "-" + g[1] : String(v || "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
+}
+function normPhone(v) { let d = String(v || "").replace(/\D/g, ""); if (d.startsWith("8869")) d = "0" + d.slice(3); return d; }
+function checkId(id) {
+  if (!/^[A-Z][12890]\d{8}$/.test(id)) return false;
+  if (!/^[A-Z][12]/.test(id)) return true; // 新式居留證等，不做檢查碼
+  const map = "ABCDEFGHJKLMNPQRSTUVXYWZIO", n = map.indexOf(id[0]) + 10;
+  let s = Math.floor(n / 10) + (n % 10) * 9;
+  for (let i = 1; i < 9; i++) s += Number(id[i]) * (9 - i);
+  return (s + Number(id[9])) % 10 === 0;
+}
+$("repairPlate").addEventListener("blur", e => e.target.value = normPlate(e.target.value));
+$("idNo").addEventListener("blur", e => e.target.value = e.target.value.toUpperCase().trim());
+$("phone").addEventListener("blur", e => { const p = normPhone(e.target.value); if (p) e.target.value = p; });
+
+/* ---------- 駕照照片（縮到 1600px） ---------- */
+function shrink(file, max, type, q) {
+  return new Promise((ok, no) => {
+    const r = new FileReader();
+    r.onload = () => { const im = new Image(); im.onload = () => {
+      const s = Math.min(1, max / Math.max(im.width, im.height));
+      const c = document.createElement("canvas"); c.width = Math.round(im.width * s); c.height = Math.round(im.height * s);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); ok(c.toDataURL(type, q));
+    }; im.onerror = no; im.src = r.result; };
+    r.onerror = no; r.readAsDataURL(file);
+  });
+}
+["front", "back"].forEach(k => {
+  $("f-" + k).addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    imgs[k] = await shrink(f, 1600, "image/jpeg", 0.85);
+    const lb = $("lb-" + k); lb.classList.add("has"); lb.innerHTML = ""; const im = new Image(); im.src = imgs[k]; im.alt = ""; lb.appendChild(im);
+    $("h-lic").textContent = "";
+  });
+});
+
+/* ---------- 步驟 1 → 2 ---------- */
+function formData() {
+  return {
+    repairPlate: normPlate($("repairPlate").value), name: $("name").value.trim(),
+    idNo: $("idNo").value.toUpperCase().trim(), phone: normPhone($("phone").value)
+  };
+}
+$("v-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const d = formData();
+  const errs = {
+    repairPlate: /^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}$/.test(d.repairPlate) ? "" : "車牌格式不正確，例如 ABC-1234",
+    name: d.name ? "" : "請填寫姓名",
+    idNo: checkId(d.idNo) ? "" : "身分證字號格式不正確",
+    phone: /^09\d{8}$/.test(d.phone) ? "" : "請輸入 09 開頭的 10 碼手機"
+  };
+  let first = null;
+  Object.keys(errs).forEach(k => { $("h-" + k).textContent = errs[k]; $(k).classList.toggle("bad", !!errs[k]); if (errs[k] && !first) first = k; });
+  $("h-lic").textContent = imgs.front && imgs.back ? "" : "請上傳駕照正面和反面";
+  if (first) return $(first).focus();
+  if (!imgs.front || !imgs.back) return;
+  renderPaper(d);
+  view("review");
+  setTimeout(sizeSig, 50);
+});
+$("back").addEventListener("click", () => view("form"));
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function renderPaper(d) {
+  const now = new Date();
+  const t = `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`;
+  $("paper").innerHTML = `<h3>旭馳車業　代步車借用合約書</h3><div class="no">簽署日期 ${t}</div>
+    <table><tr><td>承租人姓名</td><td>${esc(d.name)}</td></tr><tr><td>身分證字號</td><td>${esc(d.idNo)}</td></tr>
+    <tr><td>手機</td><td>${esc(d.phone)}</td></tr><tr><td>維修車輛車牌</td><td>${esc(d.repairPlate)}</td></tr></table>
+    <strong>合約條款</strong><ol>${terms.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
+    <strong>駕照影像</strong><div class="pics"><img src="${imgs.front}" alt="駕照正面"><img src="${imgs.back}" alt="駕照反面"></div>`;
+}
+
+/* ---------- 簽名板 ---------- */
+const cv = $("sig"), ctx = cv.getContext("2d");
+let drawing = false, signed = false, last = null;
+function sizeSig() {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = r.width * dpr; cv.height = r.height * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.lineWidth = 2.6; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#111";
+  signed = false; $("sigph").hidden = false;
+}
+function pt(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+cv.addEventListener("pointerdown", e => { drawing = true; last = pt(e); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", e => {
+  if (!drawing) return; const p = pt(e);
+  ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p;
+  if (!signed) { signed = true; $("sigph").hidden = true; }
+});
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => drawing = false));
+$("sigclear").addEventListener("click", () => { ctx.clearRect(0, 0, cv.width, cv.height); signed = false; $("sigph").hidden = false; });
+
+/* ---------- 送出申請 ---------- */
+$("submit").addEventListener("click", async () => {
+  if (!signed) return ($("r-err").textContent = "請先簽名");
+  if (!$("agree").checked) return ($("r-err").textContent = "請勾選同意合約條款");
+  $("r-err").textContent = ""; $("submit").disabled = true; $("submit").textContent = "送出中…";
+  try {
+    const d = formData();
+    const r = await api("apply", Object.assign({}, d, { licFront: imgs.front, licBack: imgs.back, signature: cv.toDataURL("image/png") }));
+    record = r.record;
+    await tellShop(`【代步車提交申請】\n申請編號：${r.id}\n姓名：${d.name}\n維修車牌：${d.repairPlate}\n\n（店家審核）${r.adminUrl}`);
+    renderStatus();
+  } catch (e) {
+    if (e.code === "TOKEN_EXPIRED") { liff.logout(); return liff.login({ redirectUri: location.href }); }
+    $("r-err").textContent = e.message || "送出失敗，請稍後再試";
+  } finally { $("submit").disabled = false; $("submit").textContent = "確認無誤提出申請"; }
+});
+
+// 在聊天室送出訊息（顧客與店家都看得到）
+async function tellShop(text) {
+  try { if (liff.isInClient()) { await liff.sendMessages([{ type: "text", text }]); return true; } } catch (e) { console.warn(e); }
+  return false;
+}
+
+/* ---------- 狀態畫面 ---------- */
+function renderStatus() {
+  const r = record, box = $("v-status"); box.innerHTML = "";
+  const st = document.createElement("div");
+  const kv = rows => `<dl class="kv">${rows.filter(x => x[1]).map(x => `<dt>${x[0]}</dt><dd>${esc(x[1])}</dd>`).join("")}</dl>`;
+  if (r.status === "申請中") {
+    st.className = "status wait";
+    st.innerHTML = `<div class="big">申請已送出 ⏳</div><div>旭馳確認後會在 LINE 通知你「申請已成功」。</div>` +
+      kv([["申請編號", r.id], ["維修車牌", r.repairPlate], ["申請時間", r.appliedAt]]);
+    box.appendChild(st);
+  } else if (r.status === "借出中") {
+    st.className = "status ok";
+    st.innerHTML = `<div class="big">代步車借用中</div><div class="loaner">${esc(r.loanerPlate || "")}</div>` +
+      kv([["維修車牌", r.repairPlate], ["借出時間", r.approvedAt], ["店家備註", r.note]]);
+    box.appendChild(st);
+    const c = document.createElement("div"); c.className = "card";
+    c.innerHTML = `<h2>要還車了嗎？</h2><div style="color:var(--dim);font-size:14px">把代步車騎回旭馳後按下「申請還車」，店家確認後會通知你。</div>
+      <label class="f">備註（選填）<textarea id="rnote" rows="2" maxlength="200" placeholder="例如：油已加滿、右後照鏡有刮痕"></textarea></label>
+      <p class="err" id="rt-err" role="alert"></p><button class="btn" id="rbtn">申請還車</button>`;
+    box.appendChild(c);
+    $("rbtn").addEventListener("click", async () => {
+      $("rbtn").disabled = true; $("rbtn").textContent = "送出中…";
+      try {
+        const d = await api("returnReq", { note: $("rnote").value });
+        record = d.record;
+        await tellShop(`【代步車申請還車】\n申請編號：${d.id}\n代步車：${r.loanerPlate}\n\n（店家確認）${d.adminUrl}`);
+        renderStatus();
+      } catch (e) { $("rt-err").textContent = e.message; $("rbtn").disabled = false; $("rbtn").textContent = "申請還車"; }
+    });
+  } else if (r.status === "還車申請中") {
+    st.className = "status wait";
+    st.innerHTML = `<div class="big">還車申請已送出 ⏳</div><div>旭馳確認車況後會在 LINE 通知你「還車成功」。</div>` +
+      kv([["代步車", r.loanerPlate], ["申請還車", r.returnReqAt]]);
+    box.appendChild(st);
+  }
+  const close = document.createElement("button"); close.className = "btn ghost"; close.textContent = "關閉";
+  close.addEventListener("click", () => liff.isInClient() ? liff.closeWindow() : window.close());
+  box.appendChild(close);
+  view("status");
+}
+
+/* ---------- 主流程 ---------- */
+async function main() {
+  if (CONFIG.API_URL.startsWith("PASTE_")) return fail("系統尚未設定完成。");
+  try { await liff.init({ liffId: CONFIG.LIFF_ID }); } catch (e) { return fail("LINE 初始化失敗，請從旭馳官方帳號選單重新開啟。"); }
+  if (!liff.isLoggedIn()) return liff.login({ redirectUri: location.href });
+  idToken = liff.getIDToken();
+  if (!idToken) return fail("無法取得 LINE 身分，請重新開啟。");
+  try {
+    const d = await api("status");
+    terms = d.terms || []; record = d.record;
+    if (record) renderStatus(); else view("form");
+  } catch (e) {
+    if (e.code === "TOKEN_EXPIRED") { liff.logout(); return liff.login({ redirectUri: location.href }); }
+    fail(e.message || "讀取失敗，請稍後再試");
+  }
+}
+main();
+</script>
+</body>
+</html>
