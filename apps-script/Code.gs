@@ -137,12 +137,15 @@ function linkToApp_(userId, m) {
   if (c.id < 0 || c.plate < 0 || c.line < 0) throw new Error('旭馳雲端「客戶」分頁欄位名稱不符');
 
   const want = normPlate_(m.plate);
+  const phone = normPhone_(m.phone);
   let hit = -1;
   for (let i = 1; i < v.length; i++) if (normPlate_(v[i][c.plate]) === want) { hit = i; break; }
 
-  // 這個 LINE 帳號之前若綁在別台車（改綁），先把舊的 LINE_User_ID 清掉
+  // 這個 LINE 帳號之前綁在「別支手機」的車（真的換人或換號碼）才清掉；同一支手機的多台車全部保留
   for (let i = 1; i < v.length; i++) {
-    if (i !== hit && v[i][c.line] === userId) sh.getRange(i + 1, c.line + 1).setValue('');
+    if (v[i][c.line] === userId && (c.phone < 0 || normPhone_(v[i][c.phone]) !== phone)) {
+      sh.getRange(i + 1, c.line + 1).setValue('');
+    }
   }
 
   if (hit < 0) return { customerId: '', match: '找不到車牌（新車待建檔）' };
@@ -151,12 +154,68 @@ function linkToApp_(userId, m) {
   if (m.relationship !== '車主本人') return { customerId: customerId, match: '已對應車輛（' + m.relationship + '，未寫入車主資料）' };
 
   const appPhone = normPhone_(r[c.phone]);
-  if (appPhone && appPhone !== m.phone) return { customerId: customerId, match: '待確認：手機與旭馳雲端不同' };
+  if (appPhone && appPhone !== phone) return { customerId: customerId, match: '待確認：手機與旭馳雲端不同' };
   if (r[c.line] && r[c.line] !== userId) return { customerId: customerId, match: '待確認：這台車已綁定其他 LINE 帳號' };
 
+  // 車牌＋手機驗證過 → 這台車寫入 LINE
   sh.getRange(hit + 1, c.line + 1).setValue(userId);
-  if (!appPhone && c.phone >= 0) sh.getRange(hit + 1, c.phone + 1).setNumberFormat('@').setValue(m.phone);
-  return { customerId: customerId, match: appPhone ? '已對應並寫入 LINE' : '已對應並寫入 LINE（補上手機）' };
+  if (!appPhone && c.phone >= 0) sh.getRange(hit + 1, c.phone + 1).setNumberFormat('@').setValue(phone);
+
+  // 同一支手機名下的其他車，LINE 欄空白的一起寫入（已綁別的 LINE 的不動）
+  let more = 0;
+  if (c.phone >= 0) {
+    for (let i = 1; i < v.length; i++) {
+      if (i === hit || normPhone_(v[i][c.phone]) !== phone) continue;
+      if (v[i][c.line] && v[i][c.line] !== userId) continue;
+      if (v[i][c.line] !== userId) sh.getRange(i + 1, c.line + 1).setValue(userId);
+      more++;
+    }
+  }
+  const tail = more ? '（同手機共 ' + (more + 1) + ' 台）' : '';
+  return { customerId: customerId, match: (appPhone ? '已對應並寫入 LINE' : '已對應並寫入 LINE（補上手機）') + tail };
+}
+
+// ============================================================
+// 每天自動補：日後新建檔的車，手機跟已驗證的會員相同 → 自動寫入 LINE
+// （先在編輯器執行一次 setupDailySync 建立排程）
+// ============================================================
+function syncByPhone() {
+  const members = getSheet_();
+  const last = members.getLastRow();
+  if (last < 2) return 0;
+  const phoneToUser = {};
+  members.getRange(2, 1, last - 1, HEADERS.length).getDisplayValues().forEach(function (r) {
+    // 只信任「車主本人」且已經用車牌＋手機驗證成功的
+    if (r[COL.relationship - 1] === '車主本人' && /^已對應並寫入 LINE/.test(r[COL.match - 1])) {
+      phoneToUser[normPhone_(r[COL.phone - 1])] = r[COL.userId - 1];
+    }
+  });
+
+  const sh = SpreadsheetApp.openById(APP_DB_ID).getSheetByName(APP_SHEET);
+  const v = sh.getDataRange().getDisplayValues();
+  const h = v[0];
+  const c = { phone: h.indexOf('手機'), plate: h.indexOf('車牌'), line: h.indexOf('LINE_User_ID') };
+  if (c.phone < 0 || c.line < 0) throw new Error('旭馳雲端「客戶」分頁欄位名稱不符');
+
+  let n = 0;
+  for (let i = 1; i < v.length; i++) {
+    if (v[i][c.line]) continue;
+    const uid = phoneToUser[normPhone_(v[i][c.phone])];
+    if (!uid) continue;
+    sh.getRange(i + 1, c.line + 1).setValue(uid);
+    n++;
+  }
+  Logger.log('同手機自動補上 LINE：' + n + ' 台');
+  return n;
+}
+
+function setupDailySync() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'syncByPhone') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('syncByPhone').timeBased().everyDays(1).atHour(3).inTimezone('Asia/Taipei').create();
+  syncByPhone();
+  Logger.log('已建立每日凌晨 3 點自動同步');
 }
 
 // 已經綁定過的會員補跑一次比對（在編輯器手動執行）
@@ -291,4 +350,11 @@ function userError_(msg, code) {
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function testMenu() {
+  const token = lineToken_();
+  Logger.log('token 長度：' + token.length);
+  Logger.log('會員選單：' + memberMenuId_(token));
+  Logger.log('換選單結果：' + linkMemberMenu_('U9da8ec84b79f48da82d689f8234b3e66'));
 }
