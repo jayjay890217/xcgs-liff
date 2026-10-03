@@ -189,7 +189,7 @@ function shrink(file, max, type, q) {
 ["front", "back"].forEach(k => {
   $("f-" + k).addEventListener("change", async e => {
     const f = e.target.files[0]; if (!f) return;
-    imgs[k] = await shrink(f, 1600, "image/jpeg", 0.85);
+    imgs[k] = await shrink(f, 1280, "image/jpeg", 0.72);
     const lb = $("lb-" + k); lb.classList.add("has"); lb.innerHTML = ""; const im = new Image(); im.src = imgs[k]; im.alt = ""; lb.appendChild(im);
     $("h-lic").textContent = "";
   });
@@ -257,7 +257,7 @@ $("sigclear").addEventListener("click", () => { ctx.clearRect(0, 0, cv.width, cv
 $("submit").addEventListener("click", async () => {
   if (!signed) return ($("r-err").textContent = "請先簽名");
   if (!$("agree").checked) return ($("r-err").textContent = "請勾選同意合約條款");
-  $("r-err").textContent = ""; $("submit").disabled = true; $("submit").textContent = "送出中…";
+  $("r-err").textContent = ""; $("submit").disabled = true; $("submit").textContent = "上傳資料中，請稍候…";
   try {
     const d = formData();
     const r = await api("apply", Object.assign({}, d, { licFront: imgs.front, licBack: imgs.back, signature: cv.toDataURL("image/png") }));
