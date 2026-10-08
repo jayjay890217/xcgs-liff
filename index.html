@@ -480,6 +480,25 @@ $("phone").addEventListener("blur", () => {
   if (p) $("phone").value = p;
 });
 
+// 綁定：連線失敗（Load failed 之類）時，先查是否其實已經存進去，沒有就自動再送一次
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function bindWithRetry(data) {
+  try {
+    return await api("bind", data);
+  } catch (e) {
+    if (!e.detail) throw e;          // 伺服器有回訊息（格式錯誤等）就直接顯示，不重試
+    setStatus("連線不穩，自動重試中…");
+    await sleep(1500);
+    try {
+      const g = await api("get");
+      if (g.member && g.member.plate === data.plate && g.member.phone === data.phone) {
+        return { ok: true, member: g.member, updated: false, menu: false };
+      }
+    } catch (_) { /* 查不到就直接重送 */ }
+    return await api("bind", data);
+  }
+}
+
 $("form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   if (submitting) return;
@@ -497,7 +516,7 @@ $("form").addEventListener("submit", async (ev) => {
   setStatus("送出中…");
 
   try {
-    const r = await api("bind", data);
+    const r = await bindWithRetry(data);
     setStatus("");
     showDone(r.member || data, r.updated, r.menu === true);
   } catch (e) {

@@ -31,9 +31,12 @@ const MEMBER_MENU_ALIAS = 'xuchi-member';
 // 入口
 // ============================================================
 function doPost(e) {
+  let action = '', uid = '';
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    action = body.action || '';
     const user = verifyIdToken_(body.idToken);
+    uid = user.userId;
 
     switch (body.action) {
       case 'get':
@@ -45,6 +48,8 @@ function doPost(e) {
     }
   } catch (err) {
     console.error(err);
+    // 使用者輸入錯誤（userMessage）不用記；系統錯誤記到「錯誤紀錄」分頁
+    if (!err.userMessage) logError_(action, uid, err);
     return json_({ ok: false, error: err.userMessage || '系統忙碌，請稍後再試', code: err.code || 'ERROR' });
   }
 }
@@ -94,28 +99,37 @@ function bind_(user, body) {
   if (!/^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}$/.test(m.plate)) throw userError_('車牌格式不正確');
 
   const lock = LockService.getScriptLock();
-  lock.waitLock(10000);
+  if (!lock.tryLock(20000)) throw userError_('目前綁定人數較多，請稍候幾秒再按一次', 'BUSY');
   try {
     const sheet = getSheet_();
     const row = findRow_(sheet, user.userId);
     const now = new Date();
-
-    // 對應旭馳雲端車輛（失敗不影響綁定本身）
-    let link = { customerId: '', match: '' };
-    try { link = linkToApp_(user.userId, m); } catch (err) { console.error(err); link.match = '比對失敗：' + err.message; }
-
-    const values = [
-      user.userId, user.displayName, m.name, m.phone, m.plate, m.model, m.relationship,
-      row ? sheet.getRange(row, COL.createdAt).getValue() : now,
-      now, link.customerId, link.match
-    ];
-
     const target = row || sheet.getLastRow() + 1;
-    sheet.getRange(target, 1, 1, HEADERS.length).setValues([values]);
+    const createdAt = row ? sheet.getRange(row, COL.createdAt).getValue() : now;
 
-    // 換成會員選單（失敗不影響綁定本身）
+    // 1) 先把會員本身存進去並立刻存檔：後面任何一步出錯，userId 也一定會留下
+    sheet.getRange(target, 1, 1, HEADERS.length).setValues([[
+      user.userId, user.displayName, m.name, m.phone, m.plate, m.model, m.relationship,
+      createdAt, now, '', '比對中'
+    ]]);
+    SpreadsheetApp.flush();
+
+    // 2) 對應旭馳雲端車輛（失敗不影響綁定本身；存檔錯誤也在這裡攔下並記錄）
+    let link = { customerId: '', match: '' };
+    try {
+      link = linkToApp_(user.userId, m);
+      SpreadsheetApp.flush();
+    } catch (err) {
+      console.error(err);
+      logError_('bind/比對旭馳雲端', user.userId, err);
+      link = { customerId: link.customerId || '', match: '比對失敗：' + err.message };
+    }
+    sheet.getRange(target, COL.customerId, 1, 2).setValues([[link.customerId, link.match]]);
+    SpreadsheetApp.flush();
+
+    // 3) 換成會員選單（失敗不影響綁定本身）
     let menu = false;
-    try { menu = linkMemberMenu_(user.userId); } catch (err) { console.error(err); }
+    try { menu = linkMemberMenu_(user.userId); } catch (err) { console.error(err); logError_('bind/換選單', user.userId, err); }
 
     return { ok: true, updated: !!row, member: m, menu: menu };
   } finally {
@@ -345,6 +359,23 @@ function userError_(msg, code) {
   e.userMessage = msg;
   e.code = code || 'INVALID';
   return e;
+}
+
+// 系統錯誤寫進「錯誤紀錄」分頁（匿名呼叫時 Google 不保留錯誤內容，只能自己記）
+function logError_(where, userId, err) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName('錯誤紀錄');
+    if (!sh) {
+      sh = ss.insertSheet('錯誤紀錄');
+      sh.appendRow(['時間', '位置', 'LINE UserID', '錯誤訊息', '詳細']);
+      sh.setFrozenRows(1);
+    }
+    sh.appendRow([new Date(), where, userId || '', String((err && err.message) || err), String((err && err.stack) || '').slice(0, 1000)]);
+    SpreadsheetApp.flush();
+  } catch (e) {
+    console.error('logError_ 失敗', e);
+  }
 }
 
 function json_(obj) {
