@@ -398,6 +398,38 @@ function showDone(m, isUpdate, menuUnlocked) {
   show("done");
 }
 
+// 綁定成功後，用客人自己的身分在聊天室送出一張資料卡（老闆在官方帳號後台聊天室就看得到車牌，方便改顯示名稱）
+// 用 liff.sendMessages：不佔官方帳號每月推播額度；只有從官方帳號聊天室（圖文選單）打開才送得出去，失敗就略過
+async function sendMemberCard(m, isUpdate) {
+  if (!liff.isInClient() || !liff.isApiAvailable("sendMessages")) return;
+  const row = (k, v, big) => ({
+    type: "box", layout: "baseline", spacing: "md", contents: [
+      { type: "text", text: k, size: "sm", color: "#888888", flex: 2 },
+      { type: "text", text: String(v || "—"), size: big ? "xl" : "md", weight: big ? "bold" : "regular", color: "#111111", flex: 5, wrap: true }
+    ]
+  });
+  const title = isUpdate ? "會員資料更新" : "加入會員";
+  try {
+    await liff.sendMessages([{
+      type: "flex",
+      altText: title + "｜車牌 " + m.plate + "｜電話 " + m.phone,
+      contents: {
+        type: "bubble", size: "kilo",
+        header: {
+          type: "box", layout: "vertical", backgroundColor: "#ff6a00", paddingAll: "12px",
+          contents: [{ type: "text", text: "旭馳車業｜" + title, color: "#ffffff", weight: "bold", size: "md" }]
+        },
+        body: {
+          type: "box", layout: "vertical", spacing: "sm",
+          contents: [row("車牌", m.plate, true), row("電話", m.phone), row("姓名", m.name), row("車種", m.model), row("身分", m.relationship)]
+        }
+      }
+    }]);
+  } catch (e) {
+    console.error(e);   // 從外部瀏覽器、或不是在聊天室打開時會失敗，不影響綁定
+  }
+}
+
 // ============================================================
 // 主流程
 // ============================================================
@@ -519,6 +551,7 @@ $("form").addEventListener("submit", async (ev) => {
     const r = await bindWithRetry(data);
     setStatus("");
     showDone(r.member || data, r.updated, r.menu === true);
+    await sendMemberCard(r.member || data, r.updated);
   } catch (e) {
     console.error(e);
     if (e.code === "TOKEN_EXPIRED") {
