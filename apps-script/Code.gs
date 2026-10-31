@@ -14,9 +14,9 @@ const SHEET_NAME = '會員綁定';
 
 const HEADERS = [
   'LINE UserID', 'LINE 名稱', '姓名', '手機', '車牌', '車種', '關係',
-  '首次綁定時間', '最後更新時間', '客戶ID', '比對結果'
+  '首次綁定時間', '最後更新時間', '客戶ID', '比對結果', 'Email'
 ];
-const COL = { userId: 1, displayName: 2, name: 3, phone: 4, plate: 5, model: 6, relationship: 7, createdAt: 8, updatedAt: 9, customerId: 10, match: 11 };
+const COL = { userId: 1, displayName: 2, name: 3, phone: 4, plate: 5, model: 6, relationship: 7, createdAt: 8, updatedAt: 9, customerId: 10, match: 11, email: 12 };
 
 // 旭馳APP資料庫（AppSheet 旭馳雲端系統）的「客戶」分頁：一列＝一台車
 const APP_DB_ID = '1zjWNnVYUlILxes3Gn-PTRJpO1kgOmjeogGX9hK-4UEM';
@@ -31,6 +31,7 @@ const MEMBER_MENU_ALIAS = 'xuchi-member';
 // 入口
 // ============================================================
 function doPost(e) {
+  const t0 = Date.now();
   let action = '', uid = '';
   try {
     const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
@@ -51,6 +52,8 @@ function doPost(e) {
     // 使用者輸入錯誤（userMessage）不用記；系統錯誤記到「錯誤紀錄」分頁
     if (!err.userMessage) logError_(action, uid, err);
     return json_({ ok: false, error: err.userMessage || '系統忙碌，請稍後再試', code: err.code || 'ERROR' });
+  } finally {
+    console.log('耗時 ' + action + ' ' + (Date.now() - t0) + ' ms');   // 到「執行項目」點開就看得到每個動作花多久
   }
 }
 
@@ -64,6 +67,12 @@ function doGet() {
 // ============================================================
 function verifyIdToken_(idToken) {
   if (!idToken) throw userError_('缺少登入資訊，請從 LINE 重新開啟', 'NO_TOKEN');
+
+  // 同一個登入憑證 10 分鐘內驗證過就不再問 LINE（不會超過憑證本身的有效期限）
+  const cache = CacheService.getScriptCache();
+  const key = 'tok_' + Utilities.base64EncodeWebSafe(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(idToken)));
+  const hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
 
   const res = UrlFetchApp.fetch('https://api.line.me/oauth2/v2.1/verify', {
     method: 'post',
@@ -79,7 +88,10 @@ function verifyIdToken_(idToken) {
       expired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID'
     );
   }
-  return { userId: data.sub, displayName: data.name || '' };
+  const user = { userId: data.sub, displayName: data.name || '' };
+  const ttl = Math.min(600, Math.floor(Number(data.exp || 0) - Date.now() / 1000) - 30);
+  if (ttl > 0) cache.put(key, JSON.stringify(user), ttl);
+  return user;
 }
 
 // ============================================================
@@ -91,12 +103,14 @@ function bind_(user, body) {
     phone: String(body.phone || '').replace(/\D/g, '').replace(/^8869/, '09'),
     plate: String(body.plate || '').toUpperCase().replace(/[^A-Z0-9-]/g, ''),
     model: clean_(body.model, 40),
+    email: String(body.email || '').trim().toLowerCase().slice(0, 100),
     relationship: RELATIONSHIPS.indexOf(body.relationship) >= 0 ? body.relationship : '其他'
   };
 
   if (!m.name) throw userError_('請填寫姓名');
   if (!/^09\d{8}$/.test(m.phone)) throw userError_('手機號碼格式不正確');
   if (!/^[A-Z0-9]{2,4}-[A-Z0-9]{2,4}$/.test(m.plate)) throw userError_('車牌格式不正確');
+  if (m.email && !/^[^\s@=+\-][^\s@]*@[^\s@]+\.[^\s@]+$/.test(m.email)) throw userError_('Email 格式不正確');
 
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw userError_('目前綁定人數較多，請稍候幾秒再按一次', 'BUSY');
@@ -110,26 +124,16 @@ function bind_(user, body) {
     // 1) 先把會員本身存進去並立刻存檔：後面任何一步出錯，userId 也一定會留下
     sheet.getRange(target, 1, 1, HEADERS.length).setValues([[
       user.userId, user.displayName, m.name, m.phone, m.plate, m.model, m.relationship,
-      createdAt, now, '', '比對中'
+      createdAt, now, '', '比對中', m.email
     ]]);
     SpreadsheetApp.flush();
 
-    // 2) 對應旭馳雲端車輛（失敗不影響綁定本身；存檔錯誤也在這裡攔下並記錄）
-    let link = { customerId: '', match: '' };
-    try {
-      link = linkToApp_(user.userId, m);
-      SpreadsheetApp.flush();
-    } catch (err) {
-      console.error(err);
-      logError_('bind/比對旭馳雲端', user.userId, err);
-      link = { customerId: link.customerId || '', match: '比對失敗：' + err.message };
-    }
-    sheet.getRange(target, COL.customerId, 1, 2).setValues([[link.customerId, link.match]]);
-    SpreadsheetApp.flush();
-
-    // 3) 換成會員選單（失敗不影響綁定本身）
+    // 2) 換成會員選單（失敗不影響綁定本身）
     let menu = false;
     try { menu = linkMemberMenu_(user.userId); } catch (err) { console.error(err); logError_('bind/換選單', user.userId, err); }
+
+    // 3) 對應旭馳雲端車輛改到背景做（約 1 分鐘內完成），客人不用等
+    schedulePending_();
 
     return { ok: true, updated: !!row, member: m, menu: menu };
   } finally {
@@ -189,11 +193,57 @@ function linkToApp_(userId, m) {
   return { customerId: customerId, match: (appPhone ? '已對應並寫入 LINE' : '已對應並寫入 LINE（補上手機）') + tail };
 }
 
+// 背景比對：把「比對中」的會員對應到旭馳雲端（綁定後由排程執行；每天凌晨同步時也會補做）
+function schedulePending_() {
+  try {
+    if (ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'processPendingLinks')) return;
+    ScriptApp.newTrigger('processPendingLinks').timeBased().after(5 * 1000).create();
+  } catch (err) {
+    console.error('schedulePending_ ' + err);
+    logError_('排程背景比對', '', err);
+  }
+}
+
+function processPendingLinks() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'processPendingLinks')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  const sheet = getSheet_();
+  const last = sheet.getLastRow();
+  if (last < 2) return 0;
+  const rows = sheet.getRange(2, 1, last - 1, HEADERS.length).getDisplayValues();
+  let n = 0;
+  rows.forEach(function (v, i) {
+    if (v[COL.match - 1] !== '比對中') return;
+    const uid = v[COL.userId - 1];
+    const m = { phone: v[COL.phone - 1], plate: v[COL.plate - 1], relationship: v[COL.relationship - 1] };
+    let link;
+    try {
+      link = linkToApp_(uid, m);
+      SpreadsheetApp.flush();
+    } catch (err) {
+      console.error(err);
+      logError_('背景/比對旭馳雲端', uid, err);
+      link = { customerId: '', match: '比對失敗：' + err.message };
+    }
+    // 寫回前再確認：同一列還是這位會員、資料沒被重新送出或修改過
+    const cur = sheet.getRange(i + 2, 1, 1, HEADERS.length).getDisplayValues()[0];
+    if (cur[COL.userId - 1] !== uid || cur[COL.match - 1] !== '比對中' || cur[COL.phone - 1] !== m.phone ||
+        cur[COL.plate - 1] !== m.plate || cur[COL.relationship - 1] !== m.relationship) return;
+    sheet.getRange(i + 2, COL.customerId, 1, 2).setValues([[link.customerId, link.match]]);
+    n++;
+  });
+  SpreadsheetApp.flush();
+  Logger.log('背景比對完成 ' + n + ' 筆');
+  return n;
+}
+
 // ============================================================
 // 每天自動補：日後新建檔的車，手機跟已驗證的會員相同 → 自動寫入 LINE
 // （先在編輯器執行一次 setupDailySync 建立排程）
 // ============================================================
 function syncByPhone() {
+  requeueNewCars_();       // 綁定時還沒建檔、後來店裡建檔了 → 重新比對
+  processPendingLinks();   // 萬一背景排程沒跑到，每天凌晨補做
   const members = getSheet_();
   const last = members.getLastRow();
   if (last < 2) return 0;
@@ -220,6 +270,31 @@ function syncByPhone() {
     n++;
   }
   Logger.log('同手機自動補上 LINE：' + n + ' 台');
+  return n;
+}
+
+/**
+ * 綁定時「找不到車牌（新車待建檔）」、現在旭馳雲端已經有這台車 → 改回「比對中」，
+ * 交給 processPendingLinks 用綁定時同一套規則重新比對（車主本人＋手機相同或車子沒填手機才寫入 LINE）
+ */
+function requeueNewCars_() {
+  const sheet = getSheet_();
+  const last = sheet.getLastRow();
+  if (last < 2) return 0;
+  const rows = sheet.getRange(2, 1, last - 1, HEADERS.length).getDisplayValues();
+  const v = SpreadsheetApp.openById(APP_DB_ID).getSheetByName(APP_SHEET).getDataRange().getDisplayValues();
+  const cp = v[0].indexOf('車牌');
+  if (cp < 0) throw new Error('旭馳雲端「客戶」分頁欄位名稱不符');
+  const plates = {};
+  for (let i = 1; i < v.length; i++) { const k = normPlate_(v[i][cp]); if (k) plates[k] = true; }
+  let n = 0;
+  rows.forEach(function (r, i) {
+    if (!/^找不到車牌/.test(r[COL.match - 1]) || !plates[normPlate_(r[COL.plate - 1])]) return;
+    sheet.getRange(i + 2, COL.match).setValue('比對中');
+    n++;
+  });
+  SpreadsheetApp.flush();
+  Logger.log('後來才建檔、重新比對：' + n + ' 筆');
   return n;
 }
 
@@ -255,10 +330,11 @@ function lineToken_() {
   return PropertiesService.getScriptProperties().getProperty('LINE_CHANNEL_ACCESS_TOKEN') || '';
 }
 
-// 用別名找出目前的會員選單 ID（選單重建時 member_menu.py 會更新別名，這裡不用改）
-function memberMenuId_(token) {
+// 用別名找出目前的會員選單 ID（選單重建時 menu_live.py alias 會更新別名，這裡不用改）
+// fresh = true 時略過快取，直接重查別名
+function memberMenuId_(token, fresh) {
   const cache = CacheService.getScriptCache();
-  const hit = cache.get('memberMenuId');
+  const hit = fresh ? null : cache.get('memberMenuId');
   if (hit) return hit;
   const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/alias/' + MEMBER_MENU_ALIAS, {
     headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
@@ -272,13 +348,19 @@ function memberMenuId_(token) {
 function linkMemberMenu_(userId) {
   const token = lineToken_();
   if (!token) { console.warn('未設定 LINE_CHANNEL_ACCESS_TOKEN，略過換選單'); return false; }
-  const menuId = memberMenuId_(token);
-  const res = UrlFetchApp.fetch(
-    'https://api.line.me/v2/bot/user/' + encodeURIComponent(userId) + '/richmenu/' + menuId,
-    { method: 'post', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }
-  );
+  const link = function (menuId) {
+    return UrlFetchApp.fetch(
+      'https://api.line.me/v2/bot/user/' + encodeURIComponent(userId) + '/richmenu/' + menuId,
+      { method: 'post', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true }
+    );
+  };
+  let res = link(memberMenuId_(token));
   if (res.getResponseCode() !== 200) {
-    CacheService.getScriptCache().remove('memberMenuId');  // 下次重新查別名
+    // 快取的選單 ID 可能已經過時（選單重建過）→ 立刻重查別名再試一次
+    res = link(memberMenuId_(token, true));
+  }
+  if (res.getResponseCode() !== 200) {
+    CacheService.getScriptCache().remove('memberMenuId');
     console.error('換選單失敗 ' + res.getResponseCode() + ' ' + res.getContentText());
     return false;
   }
@@ -311,6 +393,7 @@ function findMember_(userId) {
     phone: v[COL.phone - 1],
     plate: v[COL.plate - 1],
     model: v[COL.model - 1],
+    email: v[COL.email - 1],
     relationship: v[COL.relationship - 1]
   };
 }
@@ -329,10 +412,14 @@ function getSheet_() {
     sheet.getRange('A:G').setNumberFormat('@');
     sheet.getRange('H:I').setNumberFormat('yyyy/mm/dd hh:mm');
   }
-  // 舊分頁補上新增的欄位（客戶ID、比對結果）
-  const head = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  if (head.length < HEADERS.length || head[COL.customerId - 1] !== HEADERS[COL.customerId - 1]) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
+  // 舊分頁補上新增的欄位（客戶ID、比對結果、Email）；檢查過一次就記起來，不用每次都讀標題
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('HEADERS_OK') !== String(HEADERS.length)) {
+    const head = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    if (head.length < HEADERS.length || head[HEADERS.length - 1] !== HEADERS[HEADERS.length - 1]) {
+      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
+    }
+    props.setProperty('HEADERS_OK', String(HEADERS.length));
   }
   return sheet;
 }
