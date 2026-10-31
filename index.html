@@ -195,6 +195,7 @@
     </div>
 
     <div id="notmine-notice" class="notice" hidden></div>
+    <div id="addcar-notice" class="notice" hidden></div>
 
     <form id="form" novalidate>
       <label for="name">姓名<span class="req">*</span></label>
@@ -244,6 +245,7 @@
       🔓 會員選單已解鎖！關閉後回到聊天室，就能看到新選單。
     </div>
     <button id="close-btn">關閉</button>
+    <button class="secondary" id="next-car-btn">我還有其他車，繼續記錄下一台</button>
     <button class="secondary" id="edit-btn">修改資料</button>
   </section>
 
@@ -267,7 +269,9 @@ const CONFIG = {
 const $ = (id) => document.getElementById(id);
 let idToken = null;
 let submitting = false;
-let notMinePlate = "";   // 從「此台車不是我的」按鈕進來：送出新車牌時才解除這台
+let notMinePlate = "";
+let addCarMode = false;   // 「繼續記錄下一台」：這次送出是另外一台車，不覆蓋前面登記的車
+let addCarPlate = "";     // 剛新增的那台（按「修改資料」改的是這台）   // 從「此台車不是我的」按鈕進來：送出新車牌時才解除這台
 
 function show(view) {
   ["loading", "error", "form", "done"].forEach(v => {
@@ -577,6 +581,10 @@ $("form").addEventListener("submit", async (ev) => {
     }
     data.notMine = notMinePlate;
   }
+  if (addCarMode) {
+    data.addCar = true;
+    if (addCarPlate) data.carPlate = addCarPlate;
+  }
 
   submitting = true;
   $("submit").disabled = true;
@@ -590,7 +598,9 @@ $("form").addEventListener("submit", async (ev) => {
       $("notmine-notice").hidden = true;
       history.replaceState(null, "", location.pathname);
     }
+    if (addCarMode) addCarPlate = data.plate;
     showDone(r.member || data, r.updated, r.menu === true);
+    if (addCarMode) $("done-title").textContent = r.updated ? "這台車的資料已更新" : "已新增這台車";
     await sendMemberCard(r.member || data, r.updated);
   } catch (e) {
     console.error(e);
@@ -611,8 +621,23 @@ $("form").addEventListener("submit", async (ev) => {
 $("close-btn").addEventListener("click", () => liff.closeWindow());
 $("edit-btn").addEventListener("click", () => {
   $("bound-tag").hidden = false;
-  $("submit").textContent = "更新資料";
+  $("submit").textContent = addCarMode ? "更新這台車" : "更新資料";
   show("form");
+});
+// 繼續記錄下一台：姓名、手機、Email 沿用，只清空車子的欄位；前面登記的車都會保留
+$("next-car-btn").addEventListener("click", () => {
+  const prev = normalizePlate($("plate").value);
+  addCarMode = true;
+  addCarPlate = "";
+  $("plate").value = "";
+  $("model").value = "";
+  $("relationship").value = "車主本人";
+  $("notmine-notice").hidden = true;
+  $("addcar-notice").textContent = (prev ? prev + " 已經記錄好了，" : "") + "請輸入下一台車的車牌（姓名、手機沿用剛剛填的）。前面登記的車都會保留，不會被取代。";
+  $("addcar-notice").hidden = false;
+  $("submit").textContent = "新增這台車";
+  show("form");
+  window.scrollTo(0, 0);
 });
 
 main();
