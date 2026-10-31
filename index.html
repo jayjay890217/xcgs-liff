@@ -267,6 +267,7 @@ const CONFIG = {
 const $ = (id) => document.getElementById(id);
 let idToken = null;
 let submitting = false;
+let notMinePlate = "";   // 從「此台車不是我的」按鈕進來：送出新車牌時才解除這台
 
 function show(view) {
   ["loading", "error", "form", "done"].forEach(v => {
@@ -487,13 +488,14 @@ async function main() {
     // 沒開 Add friend option 或非 LINE 內開啟時會失敗，略過
   }
 
-  // 從「檢驗排氣通知」卡片按「此台車不是我的」進來（?notmine=車牌）→ 先解除這台車，再請客人輸入現在的車牌
-  const notMine = new URLSearchParams(location.search).get("notmine");
+  // 從「檢驗排氣通知」卡片按「此台車不是我的」進來（?notmine=車牌）→ 只請客人輸入現在的車牌；按送出才解除舊車（沒送出就什麼都不改）
+  const notMine = normalizePlate(new URLSearchParams(location.search).get("notmine") || "");
+  notMinePlate = notMine;
 
   // 查詢是否已綁定過 → 預填
-  $("loading-text").textContent = notMine ? "正在移除這台車…" : "讀取會員資料…";
+  $("loading-text").textContent = "讀取會員資料…";
   try {
-    const r = notMine ? await api("notMine", { plate: notMine }) : await api("get");
+    const r = await api("get");
     if (r.member) {
       fillForm(r.member);
       $("bound-tag").hidden = false;
@@ -501,13 +503,12 @@ async function main() {
       $("consent").checked = true;
     }
     if (notMine) {
-      if (normalizePlate($("plate").value) === normalizePlate(r.plate || notMine)) {
+      if (normalizePlate($("plate").value) === notMine) {
         $("plate").value = "";
         $("model").value = "";
       }
-      $("notmine-notice").textContent = "已幫您移除 " + (r.plate || notMine) + "，之後不會再收到這台車的通知。請輸入您現在的車牌，按「" + $("submit").textContent + "」重新綁定。";
+      $("notmine-notice").textContent = "要把 " + notMine + " 換成您現在的車嗎？請輸入現在的車牌，按「" + $("submit").textContent + "」後才會更換，之後就不會再收到 " + notMine + " 的通知。不想更換的話直接關閉這個畫面就好，資料不會有任何變動。";
       $("notmine-notice").hidden = false;
-      history.replaceState(null, "", location.pathname);   // 重新整理不要再移除一次
     }
   } catch (e) {
     console.error(e);
@@ -517,7 +518,7 @@ async function main() {
       return;
     }
     if (notMine) {
-      $("notmine-notice").textContent = "❌ 移除 " + notMine + " 沒有成功（" + e.message + "），請稍後再按一次，或直接傳訊息告訴我們。";
+      $("notmine-notice").textContent = "要把 " + notMine + " 換成您現在的車嗎？請填好資料、輸入現在的車牌後按送出；不想更換的話直接關閉就好，資料不會變動。";
       $("notmine-notice").hidden = false;
     }
     // 查詢失敗不擋填寫，但把原因記下來方便除錯
@@ -549,7 +550,7 @@ async function bindWithRetry(data) {
     await sleep(1500);
     try {
       const g = await api("get");
-      if (g.member && g.member.plate === data.plate && g.member.phone === data.phone) {
+      if (!data.notMine && g.member && g.member.plate === data.plate && g.member.phone === data.phone) {
         return { ok: true, member: g.member, updated: false, menu: false };
       }
     } catch (_) { /* 查不到就直接重送 */ }
@@ -569,6 +570,14 @@ $("form").addEventListener("submit", async (ev) => {
     return;
   }
 
+  if (notMinePlate) {
+    if (data.plate === notMinePlate) {
+      setStatus("這是您說不是您的車牌，請輸入您現在的車牌", true);
+      return;
+    }
+    data.notMine = notMinePlate;
+  }
+
   submitting = true;
   $("submit").disabled = true;
   setStatus("送出中…");
@@ -576,6 +585,11 @@ $("form").addEventListener("submit", async (ev) => {
   try {
     const r = await bindWithRetry(data);
     setStatus("");
+    if (notMinePlate) {                 // 已換好車：之後再按「修改資料」就是一般修改
+      notMinePlate = "";
+      $("notmine-notice").hidden = true;
+      history.replaceState(null, "", location.pathname);
+    }
     showDone(r.member || data, r.updated, r.menu === true);
     await sendMemberCard(r.member || data, r.updated);
   } catch (e) {
