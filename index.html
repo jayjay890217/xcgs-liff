@@ -194,6 +194,8 @@
       <a id="friend-link" href="#" hidden>點此加入好友</a>
     </div>
 
+    <div id="notmine-notice" class="notice" hidden></div>
+
     <form id="form" novalidate>
       <label for="name">姓名<span class="req">*</span></label>
       <input id="name" autocomplete="name" placeholder="請輸入姓名" maxlength="30">
@@ -485,15 +487,27 @@ async function main() {
     // 沒開 Add friend option 或非 LINE 內開啟時會失敗，略過
   }
 
+  // 從「檢驗排氣通知」卡片按「此台車不是我的」進來（?notmine=車牌）→ 先解除這台車，再請客人輸入現在的車牌
+  const notMine = new URLSearchParams(location.search).get("notmine");
+
   // 查詢是否已綁定過 → 預填
-  $("loading-text").textContent = "讀取會員資料…";
+  $("loading-text").textContent = notMine ? "正在移除這台車…" : "讀取會員資料…";
   try {
-    const r = await api("get");
+    const r = notMine ? await api("notMine", { plate: notMine }) : await api("get");
     if (r.member) {
       fillForm(r.member);
       $("bound-tag").hidden = false;
       $("submit").textContent = "更新資料";
       $("consent").checked = true;
+    }
+    if (notMine) {
+      if (normalizePlate($("plate").value) === normalizePlate(r.plate || notMine)) {
+        $("plate").value = "";
+        $("model").value = "";
+      }
+      $("notmine-notice").textContent = "已幫您移除 " + (r.plate || notMine) + "，之後不會再收到這台車的通知。請輸入您現在的車牌，按「" + $("submit").textContent + "」重新綁定。";
+      $("notmine-notice").hidden = false;
+      history.replaceState(null, "", location.pathname);   // 重新整理不要再移除一次
     }
   } catch (e) {
     console.error(e);
@@ -501,6 +515,10 @@ async function main() {
       liff.logout();
       liff.login({ redirectUri: location.href });
       return;
+    }
+    if (notMine) {
+      $("notmine-notice").textContent = "❌ 移除 " + notMine + " 沒有成功（" + e.message + "），請稍後再按一次，或直接傳訊息告訴我們。";
+      $("notmine-notice").hidden = false;
     }
     // 查詢失敗不擋填寫，但把原因記下來方便除錯
     $("debug").textContent = "載入：" + (e.detail || e.message);

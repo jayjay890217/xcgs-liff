@@ -44,6 +44,8 @@ function doPost(e) {
         return json_({ ok: true, member: findMember_(user.userId) });
       case 'bind':
         return json_(bind_(user, body));
+      case 'notMine':                       // 檢驗排氣通知卡片按「此台車不是我的」（排氣檢驗.gs）
+        return json_(notMine_(user, body));
       default:
         return json_({ ok: false, error: '未知的操作' });
     }
@@ -182,8 +184,10 @@ function linkToApp_(userId, m) {
   // 同一支手機名下的其他車，LINE 欄空白的一起寫入（已綁別的 LINE 的不動）
   let more = 0;
   if (c.phone >= 0) {
+    const notMine = notMineSet_();     // 客人說過「不是我的」的車不補
     for (let i = 1; i < v.length; i++) {
       if (i === hit || normPhone_(v[i][c.phone]) !== phone) continue;
+      if (notMine[userId + '|' + normPlate_(v[i][c.plate])]) continue;
       if (v[i][c.line] && v[i][c.line] !== userId) continue;
       if (v[i][c.line] !== userId) sh.getRange(i + 1, c.line + 1).setValue(userId);
       more++;
@@ -261,11 +265,12 @@ function syncByPhone() {
   const c = { phone: h.indexOf('手機'), plate: h.indexOf('車牌'), line: h.indexOf('LINE_User_ID') };
   if (c.phone < 0 || c.line < 0) throw new Error('旭馳雲端「客戶」分頁欄位名稱不符');
 
+  const notMine = notMineSet_();       // 客人說過「不是我的」的車不補
   let n = 0;
   for (let i = 1; i < v.length; i++) {
     if (v[i][c.line]) continue;
     const uid = phoneToUser[normPhone_(v[i][c.phone])];
-    if (!uid) continue;
+    if (!uid || notMine[uid + '|' + normPlate_(v[i][c.plate])]) continue;
     sh.getRange(i + 1, c.line + 1).setValue(uid);
     n++;
   }
